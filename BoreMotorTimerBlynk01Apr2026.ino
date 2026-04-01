@@ -18,8 +18,55 @@
 
  *************************************************************/
 
+/************************************************************
+-- a Product of Neo-Smart Coded by Saad 01Apr2026 14:00PM --
+************************************************************/
+
+/************************************************************
+ * Project       : <Water Solutions with IoT>
+ * File Name     : <BoreMotorTimerBlynk01Apr2026.ino>
+ * Authorrrrr    : <Saad Ilyas>
+ * Organization  : <Neo-Smart>
+ *
+ * Description   :
+ *  <Brief technical description of what this file/module does.
+ *   Mention key functionality, interfaces, or hardware used.>
+ *
+ * Hardware used :
+ *   MCU used    : <ESP8266, ESP12E CHIP with a custom made
+ *                  circuit developed by Neo-Smart>
+ *   Peripherals : <Single Relay Module for Motor Contactor>
+ *
+ * Version       : v1.0.0
+ * Dateeee       : <01-Apr-2026>
+ *
+ * Revision History:
+ *   ----------------------------------------------------------
+ *   Version        Date           Author        Description
+ *   ----------------------------------------------------------
+ *   v1.0.0    <01-Apr-2026>    <Saad ilyas>    Initial release
+ *   v1.1.0    <date>              <name>       <Changes made>
+ *   v1.2.0    <date>              <name>       <Changes made>
+ *   v1.3.0    <date>              <name>       <Changes made>
+ *
+ * Dependencies :
+ *   - <EEPROM.h>
+ *   - <TimeLib.h>
+ *   - <WidgetRTC.h>
+ *   - <BlynkEdgent.h>
+ *
+ * Important Notes :
+ *   - <Important implementation notes>
+ *   This firmware is specifically meant for 28BYJ MOTOR
+ *   - <Limitations or assumptions>
+ *   User must count limitations ULN2003 driver IC, which
+ *   contains darlington pairs transistors
+ *
+ * *********************************************************/
+
+
 #define BLYNK_TEMPLATE_ID          "TMPLBXX0Jl_1"
-#define BLYNK_TEMPLATE_NAME      "IOT MOTOR TIMER"
+#define BLYNK_TEMPLATE_NAME      "Boring Motor Timer"
 #define BLYNK_FIRMWARE_VERSION        "0.1.0"
  
 #define BLYNK_PRINT Serial
