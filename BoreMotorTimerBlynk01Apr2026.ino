@@ -82,7 +82,26 @@
 // #define BLYNK_DEBUG
 // #define USE_NODE_MCU_BOARD
 
+// -------------------- Pins & Addresses -------------------- //
+
+// #define DryRunPin    A0
+
+#define DryRunPin    0   // GPIO0 (D3) Dry Run Sensor Pin
+#define RelayyPin    2   // GPIO2 (D4) Motor + Green Led Pin
+#define RedLEDPin    1   // GPIO14(TX) Red LED Pin for fault
+
 WidgetRTC rtccccc;
+
+// int waterValue = 0;
+
+bool RelayStatee = LOW;               // Current motor state
+bool RedLedState = LOW;               // LOW side switching
+bool waterPresent = true;
+
+unsigned long ledPreviousMillis = 0;
+
+// Tune this threshold experimentally
+int WATER_THRESHOLD = 400;   // example
 
 String currentTime;
 String currentDate;
@@ -92,19 +111,14 @@ String currentDate;
 int OnnUnit = 1;   // default minutes
 int OffUnit = 1;   // default minutes
 
-// -------------------- Pins & Addresses -------------------- //
-
-int MoterState = LOW;               // Current motor state
-const int MotorPin = 5;             // Motor Relay Pinnnnn
-
 // -------------------- EEPROM addresses -------------------- //
 
-const int addrAutoManual   = 500;   // Auto/Manual mode
-const int addrBlynkRelay   = 510;   // Blynk Relay state
-const int addrOnnDuration   = 520;   // On duration (minutes)
-const int addrOffDuration   = 530;   // Off duration (minutes)
-const int addrLastStatee   = 540;   // Off duration (minutes)
-const int addrLastStTime   = 550;   // store start time (seconds since epoch)
+const int addrAutoManual   = 500;    // Auto/Manual mode
+const int addrBlynkRelay   = 510;    // Blynk Relay state
+const int addrOnnDuration  = 520;    // On duration (minutes)
+const int addrOffDuration  = 530;    // Off duration (minutes)
+const int addrLastStatee   = 540;    // Off duration (minutes)
+const int addrLastStTime   = 550;    // store start time (seconds since epoch)
 
 const int addrOnnUnit = 600;   // 0=sec, 1=min, 2=hour, 3=day, 4=week, 5=month, 6=year
 const int addrOffUnit = 610;   // 0=sec, 1=min, 2=hour  3=day, 4=week, 5=month, 6=year
@@ -112,7 +126,7 @@ const int addrOffUnit = 610;   // 0=sec, 1=min, 2=hour  3=day, 4=week, 5=month, 
 // -------------------- Blynk variables --------------------- //
 
 int AutoManual = 0;                  // 0 = Manual, 1 = Auto
-int RelayState = 0;                  // 0 = OFF, 1 = ON
+int RelayButton = 0;                  // 0 = OFF, 1 = ON
 int OnnDuration = 1;                 // currently Minutes
 int OffDuration = 1;                 // currently Minutes
 
@@ -181,11 +195,11 @@ BLYNK_WRITE(V4)   // Blynk Auto/Manual Button
   
 BLYNK_WRITE(V5)   // Blynk Relay Control Button
 
- {RelayState = param.asInt();
-  EEPROM.write(addrBlynkRelay, RelayState);
+ {RelayButton = param.asInt();
+  EEPROM.write(addrBlynkRelay, RelayButton);
   EEPROM.commit();
   Serial.print("[APP] RelayState set to: ");
-  Serial.println(RelayState);}
+  Serial.println(RelayButton);}
   
   // Blynk.logEvent("Alert! You turned OFF the Motor Manual");}
 
@@ -247,6 +261,38 @@ void RequestTime()
   Blynk.virtualWrite(V1, currentTime);}
 
 ///////////////////////////////////////////////////////////////////////
+////////////// ---------- Water Check Function ---------- /////////////
+///////////////////////////////////////////////////////////////////////
+
+bool checkWaterPresence()
+ {int value = digitalRead(DryRunPin);
+
+  if (value == HIGH)
+     {return true;}     // WATER FLOWING
+     
+  else
+     {return false;}}   // DRY CONDITION
+ 
+ /*
+ 
+ {int sum = 0;
+
+  for (int i = 0; i < 10; i++)
+      {sum += analogRead(DryRunPin);
+       delay(5);}
+
+  waterValue = sum / 10;
+
+  Serial.print("[SENSOR] Water ADC: ");
+  Serial.println(waterValue);
+
+  if (waterValue < WATER_THRESHOLD)
+     {return false;}   // DRY CONDITION
+  
+  else
+     {return true;}}   // WATER PRESENT */
+
+///////////////////////////////////////////////////////////////////////
 /////////////// ---------- Main Setup Handler ---------- //////////////
 ///////////////////////////////////////////////////////////////////////
 
@@ -255,33 +301,41 @@ void setup()
  {// rtc.begin();
   EEPROM.begin(4096);
   Serial.begin(9600);
+  
   BlynkEdgent.begin();
+  
   RestoreTimeCycle();
-  pinMode(MotorPin, OUTPUT);
-  digitalWrite(MotorPin, MoterState);
+
+  pinMode(DryRunPin, INPUT);
+  
+  pinMode(RedLEDPin, OUTPUT);
+  pinMode(RelayyPin, OUTPUT);
+
+  digitalWrite(RedLEDPin, RedLedState);
+  digitalWrite(RelayyPin, RelayStatee);
 
   // -------- Load saved values -------- //
   
   AutoManual = EEPROM.read(addrAutoManual);
-  RelayState = EEPROM.read(addrBlynkRelay);
+  RelayButton = EEPROM.read(addrBlynkRelay);
   OnnDuration = EEPROM.read(addrOnnDuration);
   OffDuration = EEPROM.read(addrOffDuration);
 
   Serial.println("---------[EEPROM] Loaded values---------");
   Serial.print("  AutoManual: "); Serial.println(AutoManual);
-  Serial.print("  RelayState: "); Serial.println(RelayState);
+  Serial.print("  RelayState: "); Serial.println(RelayButton);
   Serial.print("  OnnDuration: "); Serial.println(OnnDuration);
   Serial.print("  OffDuration: "); Serial.println(OffDuration);
 
   OnnUnit  = EEPROM.read(addrOnnUnit);
-  if (OnnUnit > 3) OnnUnit = 1;   // safety default minutes
+  if (OnnUnit > 3) OnnUnit = 1;   // safety default minutes 
 
   OffUnit = EEPROM.read(addrOffUnit);
   if (OffUnit > 3) OffUnit = 1;
 
-  if (RelayState)
-     {digitalWrite(MotorPin, HIGH);
-      MoterState = HIGH;}
+  if (RelayButton)
+     {digitalWrite(RelayyPin, HIGH);
+      RelayStatee = HIGH;}
 
   edgentTimer.setInterval(1000L, RequestTime);}
 
@@ -293,10 +347,38 @@ void loop()
  
  {BlynkEdgent.run();
   currentMillis = millis();
-  if (AutoManual == 1)
-     {AutoRunMode();}
-  else
-     {ManualRunMode();}}
+  waterPresent = checkWaterPresence();
+
+  if (!waterPresent)   // 🚨 SAFETY OVERRIDE
+     {if (RelayStatee == HIGH)
+         {Serial.println("[SAFETY] DRY RUN DETECTED → MOTOR OFF");
+
+          RelayButton = 0;
+          RelayStatee = LOW;
+          digitalWrite(RelayyPin, LOW);
+
+          unsigned long ledcurrentMillis = millis();
+
+          if (ledcurrentMillis - ledPreviousMillis >= 500)
+             {ledPreviousMillis = ledcurrentMillis;
+
+              RedLedState = !RedLedState;
+              digitalWrite(RedLEDPin, RedLedState);}
+
+          Blynk.virtualWrite(V5, 0);
+          Blynk.logEvent("[SAFETY] DRY RUN DETECTED → MOTOR OFF");}
+
+      return;}  // ❗ STOP further logic
+ 
+  ////////// ---------------- NORMAL LOGIC ---------------- ///////////
+
+  if (waterPresent)
+     {if (AutoManual == 1)
+         {AutoRunMode();
+          digitalWrite(RedLEDPin, LOW);}
+      else
+         {ManualRunMode();
+          digitalWrite(RedLEDPin, LOW);}}}
 
 ///////////////////////////////////////////////////////////////////////
 /////////////// ---------- Auto Mode Handler ---------- ///////////////
@@ -313,11 +395,11 @@ void AutoRunMode()
   unsigned long onnTime = toSeconds(OnnDuration, OnnUnit);
   unsigned long offTime = toSeconds(OffDuration, OffUnit);
 
-  if (MoterState == HIGH && elapsedd >= onnTime) 
+  if (RelayStatee == HIGH && elapsedd >= onnTime) 
      {// Turn OFF
-      RelayState = 0;
-      MoterState = LOW;
-      digitalWrite(MotorPin, LOW);
+      RelayButton = 0;
+      RelayStatee = LOW;
+      digitalWrite(RelayyPin, LOW);
       manualStartEpo = nowEpoch;     // <-- reset reference time
       SaveCycleState(nowEpoch, 0);
 
@@ -326,12 +408,12 @@ void AutoRunMode()
       Blynk.logEvent("motor_off", "Motor turned OFF (Auto)");
       Serial.println("[AUTO] Motor OFF after OnnDuration");}
       
-  else if (MoterState == LOW && elapsedd >= offTime)
+  else if (RelayStatee == LOW && elapsedd >= offTime)
   
           {// Turn ON
-           RelayState = 1;
-           MoterState = HIGH;
-           digitalWrite(MotorPin, HIGH);
+           RelayButton = 1;
+           RelayStatee = HIGH;
+           digitalWrite(RelayyPin, HIGH);
            manualStartEpo = nowEpoch;      // <-- reset reference time
            SaveCycleState(nowEpoch, 1);
 
@@ -351,21 +433,21 @@ void ManualRunMode()
   // unsigned long targettt = (unsigned long)OnnDuration * 60UL;
   unsigned long targettt = toSeconds(OnnDuration, OnnUnit);   // ✅ now respects dropdown unit
 
-  if (RelayState == 1 && MoterState == LOW) 
+  if (RelayButton == 1 && RelayStatee == LOW) 
      {// Button pressed ON
-      MoterState = HIGH;
-      digitalWrite(MotorPin, HIGH);
+      RelayStatee = HIGH;
+      digitalWrite(RelayyPin, HIGH);
       manualStartEpo = nowEpoch;      // <-- reset reference time
       SaveCycleState(nowEpoch, 1);
 
       Blynk.logEvent("motor_on", "Motor turned ON (Manual)");
       Serial.println("[MANUAL] Motor ON (button press)");}
 
-  if (MoterState == HIGH && elapsedd >= targettt) 
+  if (RelayStatee == HIGH && elapsedd >= targettt) 
      {// Auto shut OFF
-      RelayState = 0;
-      MoterState = LOW;
-      digitalWrite(MotorPin, LOW);
+      RelayButton = 0;
+      RelayStatee = LOW;
+      digitalWrite(RelayyPin, LOW);
       manualStartEpo = nowEpoch;     // <-- reset reference time
       SaveCycleState(nowEpoch, 0);
 
@@ -398,17 +480,17 @@ void RestoreTimeCycle()
   if (lastState == 1)
      {if (elapsedd < onnTime) 
          {// Resume ON cycle
-          RelayState = 1;
-          MoterState = HIGH;
-          digitalWrite(MotorPin, HIGH);
+          RelayButton = 1;
+          RelayStatee = HIGH;
+          digitalWrite(RelayyPin, HIGH);
           Serial.print("[RESTORE] Motor still ON, ");
           Serial.print(onnTime - elapsedd);
           Serial.println(" seconds remaining");}
       else
          {// ON expired, switch OFF and start OFF cycle
-          RelayState = 0;
-          MoterState = LOW;
-          digitalWrite(MotorPin, LOW);
+          RelayButton = 0;
+          RelayStatee = LOW;
+          digitalWrite(RelayyPin, LOW);
           SaveCycleState(nowEpoch, 0);
           Serial.println("[RESTORE] ON expired, motor OFF (start OFF cycle)");}}
   
@@ -416,17 +498,17 @@ void RestoreTimeCycle()
      
      {if (elapsedd < offTime)
          {// Resume OFF cycle
-          RelayState = 0;
-          MoterState = LOW;
-          digitalWrite(MotorPin, LOW);
+          RelayButton = 0;
+          RelayStatee = LOW;
+          digitalWrite(RelayyPin, LOW);
           Serial.print("[RESTORE] Motor still OFF, ");
           Serial.print(offTime - elapsedd);
           Serial.println(" seconds remaining");}
       else 
          {// OFF expired, switch ON and start ON cycle
-          RelayState = 1;
-          MoterState = HIGH;
-          digitalWrite(MotorPin, HIGH);
+          RelayButton = 1;
+          RelayStatee = HIGH;
+          digitalWrite(RelayyPin, HIGH);
           SaveCycleState(nowEpoch, 1);
           Serial.println("[RESTORE] OFF expired, motor ON (start ON cycle)");}}}
 

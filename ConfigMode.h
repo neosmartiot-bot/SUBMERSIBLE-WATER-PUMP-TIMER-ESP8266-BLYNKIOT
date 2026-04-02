@@ -501,4 +501,3 @@ void enterError() {
 
   restartMCU();
 }
-
