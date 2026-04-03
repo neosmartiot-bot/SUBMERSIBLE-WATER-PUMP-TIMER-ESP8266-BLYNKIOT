@@ -203,11 +203,10 @@ BLYNK_CONNECTED()
       
    Blynk.syncVirtual(V4);
    Blynk.syncVirtual(V5);
-   Blynk.syncVirtual(V7);    // Onn Duration (default minutes)
-   Blynk.syncVirtual(V8);    // Off Duration (default minutes)
-   Blynk.syncVirtual(V11);   // Dropdown for OnnDuration unit
-   Blynk.syncVirtual(V12);   // Dropdown for OffDuration unit
-   }
+   Blynk.syncVirtual(V7);     // Onn Duration (default minutes)
+   Blynk.syncVirtual(V8);     // Off Duration (default minutes)
+   Blynk.syncVirtual(V11);    // Dropdown for OnnDuration unit
+   Blynk.syncVirtual(V12);}   // Dropdown for OffDuration unit
 
 BLYNK_DISCONNECTED()
  {blynkOnline = false;
@@ -216,7 +215,7 @@ BLYNK_DISCONNECTED()
 BLYNK_WRITE(V4)   // Blynk Auto/Manual Button
 
  {AutoManual = param.asInt();
-  EEPROM.write(addrAutoManual, AutoManual);
+  EEPROM.put(addrAutoManual, AutoManual);
   EEPROM.commit();
   Serial.print("[APP] Auto/Manual set to: ");
   Serial.println(AutoManual);}
@@ -224,7 +223,7 @@ BLYNK_WRITE(V4)   // Blynk Auto/Manual Button
 BLYNK_WRITE(V5)   // Blynk Relay Control Button
 
  {RelayButton = param.asInt();
-  EEPROM.write(addrBlynkRelay, RelayButton);
+  EEPROM.put(addrBlynkRelay, RelayButton);
   EEPROM.commit();
   Serial.print("[APP] RelayState set to: ");
   Serial.println(RelayButton);}
@@ -240,10 +239,11 @@ BLYNK_WRITE(V7)   // On duration (minutes)
       if ((unsigned long)OnnDuration * 60UL > MAX_DURATION_SEC)
          {OnnDuration = (MAX_DURATION_SEC / 60UL); // clamp to minutes
           Serial.println("[WARNING] OnNDuration capped to 30 days max");}
-      EEPROM.write(addrOnnDuration, OnnDuration);
+      EEPROM.put(addrOnnDuration, OnnDuration);
       EEPROM.commit();
-      Serial.print("[APP] OnnDuration set to: ");
-      Serial.println(OnnDuration);}}
+      if (EEPROM.commit())
+         {Serial.print("[APP] OnnDuration set to: ");
+          Serial.println(OnnDuration);}}}
   
 BLYNK_WRITE(V8)   // Off duration (minutes)
 
@@ -254,10 +254,11 @@ BLYNK_WRITE(V8)   // Off duration (minutes)
       if ((unsigned long)OffDuration * 60UL > MAX_DURATION_SEC)
          {OffDuration = (MAX_DURATION_SEC / 60UL);
           Serial.println("[WARNING] OffDuration capped to 30 days max");}
-      EEPROM.write(addrOffDuration, OffDuration);
+      EEPROM.put(addrOffDuration, OffDuration);
       EEPROM.commit();
-      Serial.print("[APP] OffDuration set to: ");
-      Serial.println(OffDuration);}}
+      if (EEPROM.commit())
+         {Serial.print("[APP] OffDuration set to: ");
+          Serial.println(OffDuration);}}}
 
 BLYNK_WRITE(V11)   // Dropdown for OnnDuration unit
  
@@ -265,10 +266,11 @@ BLYNK_WRITE(V11)   // Dropdown for OnnDuration unit
 
   if (newVal != OnnUnit)
      {OnnUnit = newVal;       // 0=sec,1=min,2=hour
-      EEPROM.write(addrOnnUnit, OnnUnit);
+      EEPROM.put(addrOnnUnit, OnnUnit);
       EEPROM.commit();
-      Serial.print("[BLYNK] OnnDuration unit set to ");
-      Serial.println(OnnUnit == 0 ? "Seconds" : OnnUnit == 1 ? "Minutes" : OnnUnit == 2 ? "Hours" : "Days");}}
+      if (EEPROM.commit())
+         {Serial.print("[BLYNK] OnnDuration unit set to ");
+          Serial.println(OnnUnit == 0 ? "Seconds" : OnnUnit == 1 ? "Minutes" : OnnUnit == 2 ? "Hours" : "Days");}}}
 
 
 BLYNK_WRITE(V12)   // Dropdown for OffDuration unit
@@ -277,17 +279,18 @@ BLYNK_WRITE(V12)   // Dropdown for OffDuration unit
 
   if (newVal != OffUnit)
      {OffUnit = newVal;   // 0=sec,1=min,2=hour
-      EEPROM.write(addrOffUnit, OffUnit);
+      EEPROM.put(addrOffUnit, OffUnit);
       EEPROM.commit();
-      Serial.print("[BLYNK] OffDuration unit set to ");
-      Serial.println(OffUnit == 0 ? "Seconds" : OffUnit == 1 ? "Minutes" : OnnUnit == 2 ? "Hours" : "Days");}}
+      if (EEPROM.commit())
+         {Serial.print("[BLYNK] OffDuration unit set to ");
+          Serial.println(OffUnit == 0 ? "Seconds" : OffUnit == 1 ? "Minutes" : OnnUnit == 2 ? "Hours" : "Days");}}}
   
 /*BLYNK_WRITE(V9)
 
  {BlynkNote = param.asInt();}*/
 
 ///////////////////////////////////////////////////////////////////////
-/////////////// ---------- Tiime Sync Handler ---------- //////////////
+/////////////// ---------- Time Sync Handler ---------- ///////////////
 ///////////////////////////////////////////////////////////////////////
 
 void RequestTime()
@@ -300,7 +303,9 @@ void RequestTime()
   Blynk.virtualWrite(V0, currentDate);
   Blynk.virtualWrite(V1, currentTime);}
 
-
+///////////////////////////////////////////////////////////////////////
+/////////////// ---------- Time Sync Handler ---------- ///////////////
+///////////////////////////////////////////////////////////////////////
 
 unsigned long getCurrentTime()
  {if (rtcValid)            // Keep tracking drift using millis
@@ -308,8 +313,6 @@ unsigned long getCurrentTime()
       return lastEpoch + delta;}
   else
      {return millis() / 1000;}}   // fallback: millis-based time
-
-
 
 ///////////////////////////////////////////////////////////////////////
 ////////////// ---------- Water Check Function ---------- /////////////
@@ -355,10 +358,10 @@ void setup()
 
   ////////// ---------- Load saved values ---------- //////////
   
-  AutoManual = EEPROM.read(addrAutoManual);
-  RelayButton = EEPROM.read(addrBlynkRelay);
-  OnnDuration = EEPROM.read(addrOnnDuration);
-  OffDuration = EEPROM.read(addrOffDuration);
+  AutoManual = EEPROM.get(addrAutoManual, AutoManual);
+  RelayButton = EEPROM.get(addrBlynkRelay, RelayButton);
+  OnnDuration = EEPROM.get(addrOnnDuration, OnnDuration);
+  OffDuration = EEPROM.get(addrOffDuration, OffDuration);
 
   Serial.println("---------[EEPROM] Loaded values---------");
   Serial.print("  AutoManual: "); Serial.println(AutoManual);
@@ -366,10 +369,10 @@ void setup()
   Serial.print("  OnnDuration: "); Serial.println(OnnDuration);
   Serial.print("  OffDuration: "); Serial.println(OffDuration);
 
-  OnnUnit  = EEPROM.read(addrOnnUnit);
+  OnnUnit  = EEPROM.get(addrOnnUnit, OnnUnit);
   if (OnnUnit > 3) OnnUnit = 1;   // safety default minutes 
 
-  OffUnit = EEPROM.read(addrOffUnit);
+  OffUnit = EEPROM.get(addrOffUnit, OffUnit);
   if (OffUnit > 3) OffUnit = 1;
 
   ////////// ------------- Setup Pins -------------- //////////
@@ -520,7 +523,7 @@ void RestoreTimeCycle()
   int lastState = 0;
 
   EEPROM.get(addrLastStTime, lastStart);
-  lastState = EEPROM.read(addrLastStatee);
+  lastState = EEPROM.get(addrLastStatee, lastState);
 
   unsigned long nowEpoch = getCurrentTime();   // RTC seconds
   unsigned long elapsedd = nowEpoch  -  lastStart;
@@ -573,7 +576,7 @@ void RestoreTimeCycle()
 void SaveCycleState(unsigned long epoch, int state)
  
  {EEPROM.put(addrLastStTime, epoch);
-  EEPROM.write(addrLastStatee, state);
+  EEPROM.put(addrLastStatee, state);
   EEPROM.commit();
 
   String ts = formatTimestamp(epoch);
