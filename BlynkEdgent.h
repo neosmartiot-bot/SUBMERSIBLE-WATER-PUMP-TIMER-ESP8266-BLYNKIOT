@@ -43,7 +43,7 @@ extern "C" {
 
 BlynkTimer edgentTimer;
 
-#include "BlynkState.h"
+#include "BlynkStatee.h"
 #include "ConfigStore.h"
 #include "ResetButton.h"
 #include "ConfigMode.h"

@@ -37,17 +37,17 @@
  *                  circuit developed by Neo-Smart>
  *   Peripherals : <Single Relay Module for Motor Contactor>
  *
- * Version       : v1.0.0
+ * Version       : v0.1.0
  * Dateeee       : <01-Apr-2026>
  *
  * Revision History:
  *   ----------------------------------------------------------
  *   Version        Date           Author        Description
  *   ----------------------------------------------------------
- *   v1.0.0    <01-Apr-2026>    <Saad ilyas>    Initial release
- *   v1.1.0    <date>              <name>       <Changes made>
- *   v1.2.0    <date>              <name>       <Changes made>
- *   v1.3.0    <date>              <name>       <Changes made>
+ *   v0.1.0    <01-Apr-2026>    <Saad ilyas>    Initial release
+ *   v0.2.0    <date>              <name>       <Changes made>
+ *   v0.3.0    <date>              <name>       <Changes made>
+ *   v0.4.0    <date>              <name>       <Changes made>
  *
  * Dependencies :
  *   - <EEPROM.h>
@@ -64,19 +64,16 @@
  *
  * *********************************************************/
 
-
 #define BLYNK_TEMPLATE_ID          "TMPLBXX0Jl_1"
-#define BLYNK_TEMPLATE_NAME      "Boring Motor Timer"
+#define BLYNK_TEMPLATE_NAME "Submersible Water Pump Timer"
 #define BLYNK_FIRMWARE_VERSION        "0.1.0"
  
 #define BLYNK_PRINT Serial
 
-// #include <Simpletimer.h>
 #include "BlynkEdgent.h"
 #include <WidgetRTC.h>
 #include <TimeLib.h>
 #include <EEPROM.h>
-// #include <time.h>
 
 // #define APP_DEBUG
 // #define BLYNK_DEBUG
@@ -95,8 +92,8 @@ WidgetRTC rtccccc;
 // int waterValue = 0;
 
 bool rtcValid = false;
-bool RelayStatee = LOW;               // Current motor state
-bool RedLedState = LOW;               // LOW side switching
+bool RelayStatee = HIGH;               // Current motor state
+bool RedLedState = HIGH;               // LOW side switching
 bool waterPresent = true;
 bool blynkOnline = false;
 
@@ -126,6 +123,9 @@ const int addrLastStTime   = 550;    // store start time (seconds since epoch)
 
 const int addrOnnUnit = 600;   // 0=sec, 1=min, 2=hour, 3=day, 4=week, 5=month, 6=year
 const int addrOffUnit = 610;   // 0=sec, 1=min, 2=hour  3=day, 4=week, 5=month, 6=year
+
+const int addrLastGoodEpoch = 700;
+const int addrRTCValidFlag  = 710;
 
 // -------------------- Blynk variables --------------------- //
 
@@ -180,17 +180,33 @@ void RestoreTimeCycle();
 
 BLYNK_CONNECTED()
   
-  {blynkOnline = true;
-   Serial.println("[BLYNK] Connected");
-    
-   rtccccc.begin();
+ {blynkOnline = true;
+  Serial.println("[BLYNK] Connected");
 
-   if (year() > 2020)   // sanity check
-      {rtcValid = true;
-       lastEpoch = now();
-       lastMillisSync = millis();
+  rtccccc.begin();
+  Blynk.sendInternal("rtc", "sync");
 
-       Serial.println("[RTC] Time synchronized");}
+  if (timeStatus() == timeSet)
+     {rtcValid = true;
+      lastEpoch = now();
+      lastMillisSync = millis();
+
+      EEPROM.write(addrRTCValidFlag, 1);
+      EEPROM.commit();
+
+      Serial.println("[RTC] Synced from server");
+       
+      if (abs((long)(now() - getCurrentTime())) > 30)
+         {Serial.println("[RTC] Time correction applied");
+
+          lastEpoch = now();
+          lastMillisSync = millis();}
+      else
+         {lastEpoch = now();
+          lastMillisSync = millis();}}
+
+  else
+      {Serial.println("[RTC] Waiting for sync...");}
 
   if (rtcValid)
      {unsigned long newEpoch = now();
@@ -312,7 +328,7 @@ unsigned long getCurrentTime()
      {unsigned long delta = (millis() - lastMillisSync) / 1000;
       return lastEpoch + delta;}
   else
-     {return millis() / 1000;}}   // fallback: millis-based time
+     {return millis() / 1000;}} // fallback: millis-based time
 
 ///////////////////////////////////////////////////////////////////////
 ////////////// ---------- Water Check Function ---------- /////////////
@@ -358,10 +374,15 @@ void setup()
 
   ////////// ---------- Load saved values ---------- //////////
   
-  AutoManual = EEPROM.get(addrAutoManual, AutoManual);
-  RelayButton = EEPROM.get(addrBlynkRelay, RelayButton);
-  OnnDuration = EEPROM.get(addrOnnDuration, OnnDuration);
-  OffDuration = EEPROM.get(addrOffDuration, OffDuration);
+  // AutoManual = EEPROM.get(addrAutoManual, AutoManual);
+  // RelayButton = EEPROM.get(addrBlynkRelay, RelayButton);
+  // OnnDuration = EEPROM.get(addrOnnDuration, OnnDuration);
+  // OffDuration = EEPROM.get(addrOffDuration, OffDuration);
+
+  EEPROM.get(addrAutoManual, AutoManual);
+  EEPROM.get(addrBlynkRelay, RelayButton);
+  EEPROM.get(addrOnnDuration, OnnDuration);
+  EEPROM.get(addrOffDuration, OffDuration);
 
   Serial.println("---------[EEPROM] Loaded values---------");
   Serial.print("  AutoManual: "); Serial.println(AutoManual);
@@ -369,10 +390,12 @@ void setup()
   Serial.print("  OnnDuration: "); Serial.println(OnnDuration);
   Serial.print("  OffDuration: "); Serial.println(OffDuration);
 
-  OnnUnit  = EEPROM.get(addrOnnUnit, OnnUnit);
+  // OnnUnit  = EEPROM.get(addrOnnUnit, OnnUnit);
+  EEPROM.get(addrOnnUnit, OnnUnit);
   if (OnnUnit > 3) OnnUnit = 1;   // safety default minutes 
 
-  OffUnit = EEPROM.get(addrOffUnit, OffUnit);
+  // OffUnit = EEPROM.get(addrOffUnit, OffUnit);
+  EEPROM.get(addrOffUnit, OffUnit);
   if (OffUnit > 3) OffUnit = 1;
 
   ////////// ------------- Setup Pins -------------- //////////
@@ -386,10 +409,11 @@ void setup()
   digitalWrite(RelayyPin, RelayStatee);
 
   ////////// ---------- Load saved values ---------- //////////
+  
+  // RestoreTimeCycle();
+  RestoreLastGoodTime();
 
   BlynkEdgent.begin();
-  
-  RestoreTimeCycle();
   
   RelayStatee = RelayButton;
   digitalWrite(RelayyPin, RelayStatee);
@@ -406,13 +430,31 @@ void loop()
   currentMillis = millis();
   waterPresent = checkWaterPresence();
 
+  /////// ---------------- Restore Time Cycle ---------------- ////////
+
+  static bool restoreDone = false;
+
+  if (rtcValid && !restoreDone)
+     {RestoreTimeCycle();
+      restoreDone = true;}
+
+  ///////// ---------------- Last Good Time ---------------- //////////
+
+  static unsigned long lastSaveMillis = 0;
+
+  if (rtcValid && millis() - lastSaveMillis > 60000)   // every 60 sec
+     {lastSaveMillis = millis();
+      SaveLastGoodTime();}
+
+  ////////// ---------------- WATER CHECK ---------------- ////////////
+
   if (!waterPresent)   // 🚨 SAFETY OVERRIDE
-     {if (RelayStatee == HIGH)
+     {if (RelayStatee == LOW)
          {Serial.println("[SAFETY] DRY RUN DETECTED → MOTOR OFF");
 
           RelayButton = 0;
-          RelayStatee = LOW;
-          digitalWrite(RelayyPin, LOW);
+          RelayStatee = HIGH;
+          digitalWrite(RelayyPin, HIGH);
 
           unsigned long ledcurrentMillis = millis();
 
@@ -452,11 +494,11 @@ void AutoRunMode()
   unsigned long onnTime = toSeconds(OnnDuration, OnnUnit);
   unsigned long offTime = toSeconds(OffDuration, OffUnit);
 
-  if (RelayStatee == HIGH && elapsedd >= onnTime) 
+  if (RelayStatee == LOW && elapsedd >= onnTime) 
      {// Turn OFF
       RelayButton = 0;
-      RelayStatee = LOW;
-      digitalWrite(RelayyPin, LOW);
+      RelayStatee = HIGH;
+      digitalWrite(RelayyPin, HIGH);
       manualStartEpo = nowEpoch;     // <-- reset reference time
       SaveCycleState(nowEpoch, 0);
 
@@ -465,12 +507,12 @@ void AutoRunMode()
       Blynk.logEvent("motor_off", "Motor turned OFF (Auto)");
       Serial.println("[AUTO] Motor OFF after OnnDuration");}
       
-  else if (RelayStatee == LOW && elapsedd >= offTime)
+  else if (RelayStatee == HIGH && elapsedd >= offTime)
   
           {// Turn ON
            RelayButton = 1;
-           RelayStatee = HIGH;
-           digitalWrite(RelayyPin, HIGH);
+           RelayStatee = LOW;
+           digitalWrite(RelayyPin, LOW);
            manualStartEpo = nowEpoch;      // <-- reset reference time
            SaveCycleState(nowEpoch, 1);
 
@@ -490,21 +532,21 @@ void ManualRunMode()
   // unsigned long targettt = (unsigned long)OnnDuration * 60UL;
   unsigned long targettt = toSeconds(OnnDuration, OnnUnit);   // ✅ now respects dropdown unit
 
-  if (RelayButton == 1 && RelayStatee == LOW) 
+  if (RelayButton == 1 && RelayStatee == HIGH) 
      {// Button pressed ON
-      RelayStatee = HIGH;
-      digitalWrite(RelayyPin, HIGH);
+      RelayStatee = LOW;
+      digitalWrite(RelayyPin, LOW);
       manualStartEpo = nowEpoch;      // <-- reset reference time
       SaveCycleState(nowEpoch, 1);
 
       Blynk.logEvent("motor_on", "Motor turned ON (Manual)");
       Serial.println("[MANUAL] Motor ON (button press)");}
 
-  if (RelayStatee == HIGH && elapsedd >= targettt) 
+  if (RelayStatee == LOW && elapsedd >= targettt) 
      {// Auto shut OFF
       RelayButton = 0;
-      RelayStatee = LOW;
-      digitalWrite(RelayyPin, LOW);
+      RelayStatee = HIGH;
+      digitalWrite(RelayyPin, HIGH);
       manualStartEpo = nowEpoch;     // <-- reset reference time
       SaveCycleState(nowEpoch, 0);
 
@@ -519,11 +561,16 @@ void ManualRunMode()
 
 void RestoreTimeCycle()
   
- {unsigned long lastStart = 0;
+ {if (!rtcValid)
+     {Serial.println("[RESTORE] RTC not ready → skipping restore");
+      return;}
+  
+  unsigned long lastStart = 0;
   int lastState = 0;
 
   EEPROM.get(addrLastStTime, lastStart);
-  lastState = EEPROM.get(addrLastStatee, lastState);
+  EEPROM.get(addrLastStatee, lastState);
+  // lastState = EEPROM.get(addrLastStatee, lastState);
 
   unsigned long nowEpoch = getCurrentTime();   // RTC seconds
   unsigned long elapsedd = nowEpoch  -  lastStart;
@@ -538,16 +585,16 @@ void RestoreTimeCycle()
      {if (elapsedd < onnTime) 
          {// Resume ON cycle
           RelayButton = 1;
-          RelayStatee = HIGH;
-          digitalWrite(RelayyPin, HIGH);
+          RelayStatee = LOW;
+          digitalWrite(RelayyPin, LOW);
           Serial.print("[RESTORE] Motor still ON, ");
           Serial.print(onnTime - elapsedd);
           Serial.println(" seconds remaining");}
       else
          {// ON expired, switch OFF and start OFF cycle
           RelayButton = 0;
-          RelayStatee = LOW;
-          digitalWrite(RelayyPin, LOW);
+          RelayStatee = HIGH;
+          digitalWrite(RelayyPin, HIGH);
           SaveCycleState(nowEpoch, 0);
           Serial.println("[RESTORE] ON expired, motor OFF (start OFF cycle)");}}
   
@@ -556,16 +603,16 @@ void RestoreTimeCycle()
      {if (elapsedd < offTime)
          {// Resume OFF cycle
           RelayButton = 0;
-          RelayStatee = LOW;
-          digitalWrite(RelayyPin, LOW);
+          RelayStatee = HIGH;
+          digitalWrite(RelayyPin, HIGH);
           Serial.print("[RESTORE] Motor still OFF, ");
           Serial.print(offTime - elapsedd);
           Serial.println(" seconds remaining");}
       else 
          {// OFF expired, switch ON and start ON cycle
           RelayButton = 1;
-          RelayStatee = HIGH;
-          digitalWrite(RelayyPin, HIGH);
+          RelayStatee = LOW;
+          digitalWrite(RelayyPin, LOW);
           SaveCycleState(nowEpoch, 1);
           Serial.println("[RESTORE] OFF expired, motor ON (start ON cycle)");}}}
 
@@ -575,11 +622,23 @@ void RestoreTimeCycle()
 
 void SaveCycleState(unsigned long epoch, int state)
  
- {EEPROM.put(addrLastStTime, epoch);
+ {if (!rtcValid)
+      {Serial.println("[WARNING] RTC not valid → skipping save");
+       return;}
+  
+  EEPROM.put(addrLastStTime, epoch);
   EEPROM.put(addrLastStatee, state);
   EEPROM.commit();
 
-  String ts = formatTimestamp(epoch);
+  // String ts = formatTimestamp(epoch);
+
+  char buf[25];
+  sprintf(buf, "%02d-%02d-%04d %02d:%02d:%02d",
+        day(), month(), year(),
+        hour(), minute(), second());
+
+  String ts = String(buf);
+  
   Serial.print("[STATE] Saved cycle: ");
   Serial.print(state == 1 ? "ON" : "OFF");
   Serial.print(", at ");
@@ -589,3 +648,40 @@ void SaveCycleState(unsigned long epoch, int state)
      {Blynk.virtualWrite(V2, ts);}
   else
      {Blynk.virtualWrite(V3, ts);}}
+
+////////////////////////////////////////////////////////////////////////
+/////////////// ---------- Save Last Good Time ---------- //////////////
+////////////////////////////////////////////////////////////////////////
+
+void SaveLastGoodTime()
+ {if (!rtcValid) return;
+
+  unsigned long currentEpoch = now();
+
+  EEPROM.put(addrLastGoodEpoch, currentEpoch);
+  EEPROM.write(addrRTCValidFlag, 1);
+  EEPROM.commit();
+
+  Serial.print("[RTC] Saved epoch: ");
+  Serial.println(currentEpoch);}
+
+void RestoreLastGoodTime()
+ {byte flag = EEPROM.read(addrRTCValidFlag);
+
+  if (flag != 1)
+     {Serial.println("[RTC] No valid saved time");
+      return;}
+
+  unsigned long savedEpoch;
+  EEPROM.get(addrLastGoodEpoch, savedEpoch);
+
+  if (savedEpoch < 100000) // sanity check (~1973)
+     {Serial.println("[RTC] Invalid saved epoch");
+      return;}
+
+  lastEpoch = savedEpoch;
+  lastMillisSync = millis();
+  rtcValid = true;
+
+  Serial.print("[RTC] Restored offline epoch: ");
+  Serial.println(savedEpoch);}
