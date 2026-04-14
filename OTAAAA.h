@@ -1,4 +1,3 @@
-
 #define OTA_FATAL(...) { BLYNK_LOG1(__VA_ARGS__); delay(1000); restartMCU(); }
 
 #define USE_SSL
