@@ -1,4 +1,3 @@
-
 /*
  * Board configuration (see examples below).
  */
